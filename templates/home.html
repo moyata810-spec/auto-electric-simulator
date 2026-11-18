@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Auto Electric Simulator{% endblock %}
+
+{% block head %}
+<style>
+    .hub-container { padding: 16px; max-width: 600px; margin: 0 auto; text-align: center; }
+    .hub-title { font-size: 20px; color: #00e5ff; margin: 10px 0 5px; }
+    .hub-subtitle { font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
+    
+    .grid { display: flex; flex-direction: column; gap: 12px; }
+    .card {
+        background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 14px;
+        text-align: left; text-decoration: none; color: white; display: flex; align-items: center; gap: 14px;
+        transition: 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .card.active:hover { border-color: #00e5ff; transform: translateY(-2px); }
+    .card-icon { font-size: 32px; background: #1e293b; border-radius: 10px; padding: 8px; }
+    .card-info h3 { margin: 0 0 4px; font-size: 15px; color: #f8fafc; }
+    .card-info p { margin: 0; font-size: 11px; color: #94a3b8; line-height: 1.4; }
+    .card-tag { font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 5px; }
+    .tag-ready { background: #065f46; color: #34d399; }
+    .tag-soon { background: #334155; color: #94a3b8; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hub-container">
+    <h1 class="hub-title">🚗 Automotive Electrical Training Suite</h1>
+    <p class="hub-subtitle">ለመለማመድ የሚፈልጉትን የመኪና ኤሌክትሪክ ክፍል ይምረጡ</p>
+
+    <div class="grid">
+        <!-- 1. Lighting System (ዝግጁ) -->
+        <a href="/lighting" class="card active" style="border-left: 4px solid #00e5ff;">
+            <div class="card-icon">💡</div>
+            <div class="card-info">
+                <h3>1. Automotive Lighting System</h3>
+                <p>Dual Headlights (Low/High), 5-Pin Dimmer Switch, Tail Lights & Hazard Flasher Relay</p>
+                <span class="card-tag tag-ready">● ዝግጁ (Active 3D)</span>
+            </div>
+        </a>
+
+        <!-- 2. Starting System (ዝግጁ) -->
+        <a href="/starter" class="card active" style="border-left: 4px solid #f59e0b;">
+            <div class="card-icon">⚙️</div>
+            <div class="card-info">
+                <h3>2. Starting System</h3>
+                <p>Ignition Switch (AM1/STA), Starter Relay, Solenoid Terminal 50 & Motor Cranking with Flywheel</p>
+                <span class="card-tag tag-ready">● ዝግጁ (Active 3D)</span>
+            </div>
+        </a>
+
+        <!-- 3. Charging System (ቀጣይ) -->
+        <div class="card" style="opacity: 0.6; border-left: 4px solid #64748b;">
+            <div class="card-icon">🔋</div>
+            <div class="card-info">
+                <h3>3. Charging System (Alternator)</h3>
+                <p>Alternator, Voltage Regulator, Rectifier Diodes, Battery & Charge Warning Lamp</p>
+                <span class="card-tag tag-soon">⏳ በቅርቡ የሚጨመር</span>
+            </div>
+        </div>
+
+        <!-- 4. Ignition & Spark System -->
+        <div class="card" style="opacity: 0.6; border-left: 4px solid #64748b;">
+            <div class="card-icon">⚡</div>
+            <div class="card-info">
+                <h3>4. Ignition & Spark System</h3>
+                <p>Ignition Coil, Distributor, Spark Plugs & Crankshaft Position Sensor</p>
+                <span class="card-tag tag-soon">⏳ በቅርቡ የሚጨመር</span>
+            </div>
+        </div>
+
+        <!-- 5. Horn & Auxiliary Accessories -->
+        <div class="card" style="opacity: 0.6; border-left: 4px solid #64748b;">
+            <div class="card-icon">📢</div>
+            <div class="card-info">
+                <h3>5. Horn, Wipers & Accessories</h3>
+                <p>Dual Horns with Relay, Wiper Motor (Park/Low/High) & Power Window Relays</p>
+                <span class="card-tag tag-soon">⏳ በቅርቡ የሚጨመር</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

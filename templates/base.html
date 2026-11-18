@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>{% block title %}Auto Electric Suite{% endblock %}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; background: #06070a; font-family: sans-serif; color: #fff; }
+        
+        /* የጋራ የላይኛው ሜኑ (Master Navbar) */
+        .master-nav {
+            background: #0f172a; border-bottom: 2px solid #00e5ff; padding: 8px 12px;
+            display: flex; justify-content: space-between; align-items: center; z-index: 1000; position: relative;
+        }
+        .nav-brand { font-size: 14px; font-weight: bold; color: #00e5ff; text-decoration: none; display: flex; align-items: center; gap: 6px; }
+        .nav-links { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; }
+        .nav-item {
+            padding: 5px 9px; font-size: 11px; font-weight: bold; border-radius: 6px; text-decoration: none;
+            background: #1e293b; color: #94a3b8; border: 1px solid #334155; transition: 0.2s;
+        }
+        .nav-item.active, .nav-item:hover { background: #0284c7; color: white; border-color: #38bdf8; }
+        .badge-soon { font-size: 8px; background: #475569; color: #cbd5e1; padding: 1px 4px; border-radius: 3px; margin-left: 3px; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <nav class="master-nav">
+        <a href="/" class="nav-brand">🚗 AutoElectric Suite</a>
+        <div class="nav-links">
+            <a href="/" class="nav-item">🏠 Dashboard</a>
+            <a href="/lighting" class="nav-item">💡 Lighting</a>
+            <a href="/starter" class="nav-item">⚙️ Starter</a>
+            <span class="nav-item" style="opacity: 0.5;">🔋 Charging<span class="badge-soon">Soon</span></span>
+            <span class="nav-item" style="opacity: 0.5;">⚡ Ignition<span class="badge-soon">Soon</span></span>
+        </div>
+    </nav>
+
+    {% block content %}{% endblock %}
+
+</body>
+</html>

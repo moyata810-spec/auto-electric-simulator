@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+
+{% block title %}3D Starting System - Auto Electric{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+    #canvas3d { width: 100vw; height: calc(100vh - 42px); display: block; }
+
+    .hud-bottom {
+        position: absolute; bottom: 6px; left: 6px; right: 6px;
+        background: rgba(12, 16, 26, 0.94); backdrop-filter: blur(12px);
+        border: 1px solid #334155; border-radius: 12px; padding: 8px;
+        z-index: 100; max-height: 45vh; overflow-y: auto; box-shadow: 0 -4px 20px rgba(0,0,0,0.6);
+    }
+    .btn-row { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .btn { padding: 6px 10px; font-size: 11px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; }
+    .btn-key { background: #334155; color: white; border: 1px solid #64748b; }
+    .btn-key.active { background: #10b981; border-color: #10b981; }
+    .btn-start { background: #d97706; color: white; border: 1px solid #f59e0b; }
+    .btn-start.cranking { background: #ef4444; color: white; animation: pulse 0.3s infinite; }
+    .btn-demo { background: #8b5cf6; color: white; }
+    .btn-reset { background: #475569; color: white; }
+
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+    .pin-inspector {
+        background: #0f172a; border: 1px solid #f59e0b; border-radius: 6px;
+        padding: 5px 8px; font-size: 11px; font-family: monospace; color: #fbbf24;
+        margin-bottom: 6px; text-align: left; font-weight: bold;
+    }
+    .pin-section { margin-bottom: 4px; text-align: left; border-bottom: 1px solid #1e293b; padding-bottom: 4px; }
+    .section-title { font-size: 9px; font-weight: bold; color: #94a3b8; text-transform: uppercase; margin-bottom: 2px; }
+    .pin-pill {
+        display: inline-block; padding: 3px 6px; font-size: 9px; font-weight: bold;
+        border-radius: 4px; margin: 1px; cursor: pointer; border: 1px solid #334155; font-family: monospace;
+        background: #1e293b; color: #f8fafc;
+    }
+    .pin-pill:hover, .pin-pill.selected { border-color: #f59e0b; background: #d97706; color: white; }
+    .diag-text { font-family: monospace; font-size: 10px; color: #fbbf24; text-align: left; line-height: 1.4; margin-top: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="canvas3d"></div>
+
+<div class="hud-bottom">
+    <div class="btn-row">
+        <button class="btn btn-key" id="keyIgnBtn" onclick="toggleIgnition()">🔑 KEY: OFF</button>
+        <button class="btn btn-start" id="keyStartBtn" onmousedown="crankStart(true)" onmouseup="crankStart(false)" ontouchstart="crankStart(true)" ontouchend="crankStart(false)">⚡ CRANK (START)</button>
+        <button class="btn btn-demo" onclick="runStarterDemo()">🎬 Demo (አስተምር)</button>
+        <button class="btn btn-reset" onclick="resetStarterCircuit()">🔄 Reset</button>
+    </div>
+
+    <div class="pin-inspector" id="activePinDisplay">
+        📌 የተመረጠ ፒን፦ ምንም አልተመረጠም (ፒን ንካ)
+    </div>
+
+    <div class="pin-section">
+        <div class="section-title">🔋 ባትሪ (Heavy Cranking Battery)</div>
+        <span class="pin-pill" style="border-left: 3px solid #ef4444" onclick="selectPinByName('bat_pos')">+12 (Heavy B+)</span>
+        <span class="pin-pill" style="border-left: 3px solid #64748b" onclick="selectPinByName('bat_neg')">GND (Ground -)</span>
+    </div>
+
+    <div class="pin-section">
+        <div class="section-title">🔑 Ignition Switch (የቁልፍ ማብሪያ)</div>
+        <span class="pin-pill" onclick="selectPinByName('ign_am1')">AM1 (Bat In)</span>
+        <span class="pin-pill" onclick="selectPinByName('ign_acc')">ACC (Accessory)</span>
+        <span class="pin-pill" onclick="selectPinByName('ign_on')">IGN (Ignition ON)</span>
+        <span class="pin-pill" onclick="selectPinByName('ign_sta')">STA (Starter Out)</span>
+    </div>
+
+    <div class="pin-section">
+        <div class="section-title">🔲 Starter Relay (4-Pin)</div>
+        <span class="pin-pill" onclick="selectPinByName('sr_30')">S30 (Pwr In)</span>
+        <span class="pin-pill" onclick="selectPinByName('sr_87')">S87 (Out to T50)</span>
+        <span class="pin-pill" onclick="selectPinByName('sr_86')">S86 (From STA)</span>
+        <span class="pin-pill" onclick="selectPinByName('sr_85')">S85 (Ground)</span>
+    </div>
+
+    <div class="pin-section" style="border:none;">
+        <div class="section-title">⚙️ Starter Motor & Solenoid</div>
+        <span class="pin-pill" style="border-left: 3px solid #ef4444" onclick="selectPinByName('mot_b30')">B30 (Heavy Terminal 30)</span>
+        <span class="pin-pill" style="border-left: 3px solid #f59e0b" onclick="selectPinByName('mot_t50')">T50 (Solenoid Coil Terminal 50)</span>
+        <span class="pin-pill" style="border-left: 3px solid #64748b" onclick="selectPinByName('mot_gnd')">GND (Starter Chassis Ground)</span>
+    </div>
+
+    <div class="diag-text" id="diagOutput">
+        🔍 <strong>ምርመራ፦</strong> የስታርተር ሰርኪዩት ተዘጋጅቷል። ሽቦዎችን አገናኝ!
+    </div>
+</div>
+
+<script>
+    const PIN_DESCRIPTIONS = {
+        'bat_pos': '+12 ➜ የባትሪ ዋና ፖዘቲቭ (Heavy 12V)',
+        'bat_neg': 'GND ➜ የባትሪ ኔጌቲቭ / ቻሲስ',
+        'ign_am1': 'AM1 ➜ የቁልፍ ማብሪያ ኃይል መግቢያ (ከባትሪ)',
+        'ign_acc': 'ACC ➜ መለዋወጫ (Accessory Out)',
+        'ign_on': 'IGN ➜ የኢንጅን ኤሌክትሪክ ማብሪያ (Ignition ON)',
+        'ign_sta': 'STA ➜ ወደ ስታርተር ሪሌይ የሚሄድ የስታርት ሲግናል',
+        'sr_30': 'S30 ➜ Starter Relay ኃይል መግቢያ',
+        'sr_87': 'S87 ➜ Starter Relay መውጫ (ወደ T50 ይሄዳል)',
+        'sr_86': 'S86 ➜ Starter Relay ሲግናል (ከ STA የሚመጣ)',
+        'sr_85': 'S85 ➜ Starter Relay ኮይል ግራውንድ',
+        'mot_b30': 'B30 ➜ ስታርተር ሶሌኖይድ Terminal 30 (ወፍራሙ ኬብል)',
+        'mot_t50': 'T50 ➜ ስታርተር ሶሌኖይድ Terminal 50 (መግነጢሱ መቀስቀሻ)',
+        'mot_gnd': 'GND ➜ የስታርተር ሞተር አካል/ቻሲስ ግራውንድ'
+    };
+
+    const container = document.getElementById('canvas3d');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x06070a);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / (window.innerHeight - 42), 0.1, 100);
+    camera.position.set(0, 12, 16);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight - 42);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2.1;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    dirLight.position.set(5, 15, 8);
+    scene.add(dirLight);
+
+    const bench = new THREE.Mesh(
+        new THREE.BoxGeometry(16, 0.4, 12),
+        new THREE.MeshStandardMaterial({ color: 0x11131a, roughness: 0.85 })
+    );
+    bench.position.y = -0.2;
+    scene.add(bench);
+
+    const clickablePins = [];
+    const pinsMap = {};
+
+    function createPin(name, x, y, z, pinColor) {
+        const pinGeo = new THREE.SphereGeometry(0.2, 16, 16);
+        const pin = new THREE.Mesh(pinGeo, new THREE.MeshStandardMaterial({ color: pinColor }));
+        pin.position.set(x, y, z);
+        pin.userData = { name: name, origColor: pinColor };
+        scene.add(pin);
+        clickablePins.push(pin);
+        pinsMap[name] = pin;
+        return pin;
+    }
+
+    const batMesh = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.8, 1.8), new THREE.MeshStandardMaterial({ color: 0x111 }));
+    batMesh.position.set(-6, 0.9, 3.5);
+    scene.add(batMesh);
+    createPin('bat_pos', -6.6, 1.8, 3.5, 0xef4444);
+    createPin('bat_neg', -5.4, 1.8, 3.5, 0x111111);
+
+    const ignBox = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.6, 24), new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6 }));
+    ignBox.position.set(-5.5, 0.3, -1.5);
+    scene.add(ignBox);
+
+    createPin('ign_am1', -6.2, 0.6, -1.8, 0xef4444);
+    createPin('ign_acc', -6.2, 0.6, -1.2, 0x38bdf8);
+    createPin('ign_on', -4.8, 0.6, -1.8, 0x10b981);
+    createPin('ign_sta', -4.8, 0.6, -1.2, 0xf59e0b);
+
+    const sRelayBase = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.25, 1.8), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+    sRelayBase.position.set(-1.5, 0.12, -1.5);
+    scene.add(sRelayBase);
+
+    const sRelayCase = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 1.4, 1.6),
+        new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, transmission: 0.9 })
+    );
+    sRelayCase.position.set(-1.5, 0.85, -1.5);
+    scene.add(sRelayCase);
+
+    const sRelayCoil = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.6, 16), new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.8 }));
+    sRelayCoil.position.set(-1.5, 0.6, -1.5);
+    scene.add(sRelayCoil);
+
+    const sRelayArm = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.6, 0.3), new THREE.MeshStandardMaterial({ color: 0xdcdde1, metalness: 0.9 }));
+    sRelayArm.position.set(-1.15, 0.7, -1.5);
+    scene.add(sRelayArm);
+
+    createPin('sr_30', -1.95, 0.25, -1.95, 0xf97316);
+    createPin('sr_87', -1.05, 0.25, -1.95, 0xf59e0b);
+    createPin('sr_86', -1.95, 0.25, -1.05, 0x38bdf8);
+    createPin('sr_85', -1.05, 0.25, -1.05, 0x111111);
+
+    const flyGeo = new THREE.CylinderGeometry(2.2, 2.2, 0.35, 36);
+    flyGeo.rotateX(Math.PI / 2);
+    const flyMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7, roughness: 0.4 });
+    const flywheel = new THREE.Mesh(flyGeo, flyMat);
+    flywheel.position.set(4.5, 1.5, -0.5);
+    scene.add(flywheel);
+
+    const motGeo = new THREE.CylinderGeometry(0.85, 0.85, 2.4, 24);
+    motGeo.rotateZ(Math.PI / 2);
+    const motMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.6 });
+    const starterBody = new THREE.Mesh(motGeo, motMat);
+    starterBody.position.set(1.5, 1.0, 1.2);
+    scene.add(starterBody);
+
+    const solGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.6, 20);
+    solGeo.rotateZ(Math.PI / 2);
+    const solMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 });
+    const solenoid = new THREE.Mesh(solGeo, solMat);
+    solenoid.position.set(1.5, 2.0, 1.2);
+    scene.add(solenoid);
+
+    const pinGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.5, 16);
+    pinGeo.rotateX(Math.PI / 2);
+    const pinMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8 });
+    const pinion = new THREE.Mesh(pinGeo, pinMat);
+    pinion.position.set(3.0, 1.0, 1.2);
+    scene.add(pinion);
+
+    createPin('mot_b30', 0.6, 2.2, 1.2, 0xef4444);
+    createPin('mot_t50', 1.5, 2.6, 1.2, 0xf59e0b);
+    createPin('mot_gnd', 1.5, 0.25, 2.3, 0x111111);
+
+    let wires = [];
+    let selectedPin = null;
+    let keyState = 'OFF';
+    let isCranking = false;
+    let isMotorSpinning = false;
+
+    function add3DWire(p1, p2, color = 0x00ffcc) {
+        wires.push([p1, p2]);
+        const pos1 = pinsMap[p1].position;
+        const pos2 = pinsMap[p2].position;
+        const midY = Math.max(pos1.y, pos2.y) + 1.2;
+        const curve = new THREE.QuadraticBezierCurve3(
+            pos1,
+            new THREE.Vector3((pos1.x + pos2.x) / 2, midY, (pos1.z + pos2.z) / 2),
+            pos2
+        );
+        const tube = new THREE.Mesh(
+            new THREE.TubeGeometry(curve, 20, 0.05, 8, false),
+            new THREE.MeshStandardMaterial({ color: color, roughness: 0.3 })
+        );
+        tube.userData = { isWire: true };
+        scene.add(tube);
+    }
+
+    function clearAllWires() {
+        wires = [];
+        const toRemove = [];
+        scene.traverse(obj => { if (obj.userData && obj.userData.isWire) toRemove.push(obj); });
+        toRemove.forEach(w => scene.remove(w));
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    window.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.master-nav') || e.target.closest('.hud-bottom')) return;
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -((e.clientY - 42) / (window.innerHeight - 42)) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const hits = raycaster.intersectObjects(clickablePins);
+        if (hits.length > 0) selectPinByName(hits[0].object.userData.name);
+    });
+
+    function selectPinByName(pinName) {
+        const pin = pinsMap[pinName];
+        const inspector = document.getElementById('activePinDisplay');
+        const desc = PIN_DESCRIPTIONS[pinName] || pinName;
+
+        if (!selectedPin) {
+            selectedPin = pinName;
+            pin.material.emissive.setHex(0xf59e0b);
+            inspector.innerHTML = '📌 የተመረጠ፦ <span style="color:#fbbf24">' + desc + '</span> ➜ (ቀጣይ ፒን ምረጥ)';
+        } else {
+            if (selectedPin !== pinName) {
+                add3DWire(selectedPin, pinName);
+                inspector.innerHTML = '🔗 ተገናኘ፦ <span style="color:#10b981">' + (PIN_DESCRIPTIONS[selectedPin]||selectedPin) + ' ➜ ' + desc + '</span>';
+                evaluateStarterCircuit();
+            }
+            pinsMap[selectedPin].material.emissive.setHex(0x000000);
+            selectedPin = null;
+        }
+    }
+
+    function resetStarterCircuit() {
+        clearAllWires();
+        selectedPin = null;
+        clickablePins.forEach(p => p.material.emissive.setHex(0x000000));
+        keyState = 'OFF';
+        isCranking = false;
+        document.getElementById('keyIgnBtn').className = 'btn btn-key';
+        document.getElementById('keyIgnBtn').innerText = '🔑 KEY: OFF';
+        document.getElementById('activePinDisplay').innerHTML = '📌 የተመረጠ ፒን፦ ምንም አልተመረጠም (ፒን ንካ)';
+        evaluateStarterCircuit();
+    }
+
+    function toggleIgnition() {
+        keyState = (keyState === 'OFF') ? 'ON' : 'OFF';
+        const btn = document.getElementById('keyIgnBtn');
+        btn.className = (keyState === 'ON') ? 'btn btn-key active' : 'btn btn-key';
+        btn.innerText = (keyState === 'ON') ? '🔑 KEY: ON (Ignition)' : '🔑 KEY: OFF';
+        evaluateStarterCircuit();
+    }
+
+    function crankStart(state) {
+        isCranking = state;
+        const btn = document.getElementById('keyStartBtn');
+        btn.className = state ? 'btn btn-start cranking' : 'btn btn-start';
+        evaluateStarterCircuit();
+    }
+
+    function checkPath(p1, p2, srClosed) {
+        let adj = {};
+        wires.forEach(w => {
+            adj[w[0]] = adj[w[0]] || []; adj[w[1]] = adj[w[1]] || [];
+            adj[w[0]].push(w[1]); adj[w[1]].push(w[0]);
+        });
+
+        if (keyState === 'ON' || isCranking) {
+            adj['ign_am1'] = adj['ign_am1'] || []; adj['ign_on'] = adj['ign_on'] || [];
+            adj['ign_am1'].push('ign_on'); adj['ign_on'].push('ign_am1');
+        }
+        if (isCranking) {
+            adj['ign_am1'] = adj['ign_am1'] || []; adj['ign_sta'] = adj['ign_sta'] || [];
+            adj['ign_am1'].push('ign_sta'); adj['ign_sta'].push('ign_am1');
+        }
+
+        if (srClosed) {
+            adj['sr_30'] = adj['sr_30'] || []; adj['sr_87'] = adj['sr_87'] || [];
+            adj['sr_30'].push('sr_87'); adj['sr_87'].push('sr_30');
+        }
+
+        let visited = new Set();
+        let queue = [p1];
+        while (queue.length > 0) {
+            let curr = queue.shift();
+            if (curr === p2) return true;
+            visited.add(curr);
+            (adj[curr] || []).forEach(nbr => { if (!visited.has(nbr)) queue.push(nbr); });
+        }
+        return false;
+    }
+
+    function evaluateStarterCircuit() {
+        let diag = [];
+
+        const srCoil = checkPath('bat_pos', 'sr_86', false) && checkPath('bat_neg', 'sr_85', false);
+        sRelayArm.position.x = srCoil ? -1.35 : -1.15;
+        sRelayArm.material.color.setHex(srCoil ? 0x00ffcc : 0xdcdde1);
+
+        const t50HasPwr = checkPath('bat_pos', 'mot_t50', srCoil);
+        const starterGnd = checkPath('bat_neg', 'mot_gnd', srCoil);
+        const heavyPwr30 = checkPath('bat_pos', 'mot_b30', srCoil);
+
+        const solenoidActive = t50HasPwr && starterGnd;
+
+        if (solenoidActive) {
+            pinion.position.set(4.0, 1.0, -0.1);
+            diag.push('🧲 Solenoid: ተስቦ የስታርተሩን ጥርስ ወደ ፍላይዊሉ ገፍቶታል!');
+        } else {
+            pinion.position.set(3.0, 1.0, 1.2);
+        }
+
+        if (solenoidActive && heavyPwr30) {
+            isMotorSpinning = true;
+            diag.push('⚡ CRANKING! ስታርተር ሞተሩ ፍላይዊሉን በከፍተኛ ኃይል እያሽከረከረ ነው!');
+        } else {
+            isMotorSpinning = false;
+            if (solenoidActive && !heavyPwr30) {
+                diag.push('⚠️ ጥርሱ ተገፍቷል ግን ከባትሪ ወፍራሙ B30 ኬብል ስላልተሰካ ሞተሩ አልሾረም (Click only!)');
+            }
+        }
+
+        if (keyState === 'ON' && !isCranking) diag.push('🔑 ቁልፉ በርቷል (Ignition ON)');
+        if (diag.length === 0) diag.push('ሽቦዎችን አገናኝ ወይም ቁልፉን ወደ START አዙር');
+
+        document.getElementById('diagOutput').innerHTML = '🔍 <strong>ምርመራ፦</strong><br>' + diag.join('<br>');
+    }
+
+    function runStarterDemo() {
+        resetStarterCircuit();
+        let step = 0;
+        const steps = [
+            () => add3DWire('bat_pos', 'mot_b30', 0xef4444),
+            () => add3DWire('mot_gnd', 'bat_neg', 0x111111),
+            () => add3DWire('bat_pos', 'ign_am1', 0xef4444),
+            () => add3DWire('ign_sta', 'sr_86', 0xf59e0b),
+            () => add3DWire('sr_85', 'bat_neg', 0x111111),
+            () => add3DWire('bat_pos', 'sr_30', 0xf97316),
+            () => add3DWire('sr_87', 'mot_t50', 0xf59e0b),
+            () => toggleIgnition(),
+            () => crankStart(true)
+        ];
+
+        const interval = setInterval(() => {
+            if (step < steps.length) {
+                steps[step]();
+                evaluateStarterCircuit();
+                step++;
+            } else {
+                clearInterval(interval);
+                setTimeout(() => { crankStart(false); }, 3000);
+            }
+        }, 600);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (isMotorSpinning) {
+            flywheel.rotation.z += 0.25;
+            pinion.rotation.z += 0.5;
+        }
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / (window.innerHeight - 42);
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight - 42);
+    });
+</script>
+{% endblock %}
